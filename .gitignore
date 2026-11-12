@@ -1,0 +1,67 @@
+# ==========================================
+# Python & Conda
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Conda environments
+.conda/
+.env
+.venv/
+venv/
+env/
+
+/data
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Данные (Data)
+# ==========================================
+# Мы не коммитим тяжелые базы данных и промежуточные файлы
+data/*.txt
+data/*.vcf
+data/*.vcf.gz
+data/*_annotated.tsv
+data/*.csv
+
+
+
+# Но при этом оставляем в репозитории тестовые файлы организаторов, 
+# чтобы команда могла их скачать
+!data/case_*.tsv
+!data/case_*.json
+!data/development_labels.tsv
+
+
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+.vscode/
+*.code-workspace
+
+.streamlit/secrets.toml
