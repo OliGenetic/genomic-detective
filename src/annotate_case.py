@@ -6,7 +6,7 @@ def annotate_variants_batch(input_path, output_path, batch_size=200):
     print(f"Загружаем данные из {input_path}...")
     df = pd.read_csv(input_path, sep="\t")
     
-     url = "https://rest.ensembl.org/vep/human/region?ClinVar=1" 
+    url = "https://rest.ensembl.org/vep/human/region?ClinVar=1" 
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     
     genes = []
