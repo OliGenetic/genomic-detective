@@ -1,0 +1,11 @@
+case_id	prediction
+case_01	chr15:48412568:C:A
+case_02	chr12:49022066:G:A
+case_03	chr12:7218729:A:G
+case_04	chr10:73216304:T:C
+case_05	chr1:8633478:A:C
+case_06	chr3:30672252:G:T
+case_07	chr2:165377606:A:G
+case_08	no_causal_variant_in_vcf
+case_09	chr7:148018502:A:G
+case_10	chr18:75012080:C:T
