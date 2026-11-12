@@ -1,11 +1,11 @@
 import pandas as pd
 
-# Укажи путь к твоему файлу (проверь, что папка data лежит в корне проекта)
+# Укажи путь к файлу
 file_path = "data/case_01_variants.tsv" 
 
 def load_variants(path):
     print(f"Читаем файл: {path}")
-    # Читаем TSV файл (разделитель - табуляция)
+    # Читаем TSV файл 
     df = pd.read_csv(path, sep="\t")
     print("Первые 5 строк таблицы:")
     print(df.head())
