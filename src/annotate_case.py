@@ -6,7 +6,7 @@ def annotate_variants_batch(input_path, output_path, batch_size=200):
     print(f"Загружаем данные из {input_path}...")
     df = pd.read_csv(input_path, sep="\t")
     
-    url = "https://rest.ensembl.org/vep/human/region"
+     url = "https://rest.ensembl.org/vep/human/region?ClinVar=1" 
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     
     genes = []
@@ -53,11 +53,17 @@ def annotate_variants_batch(input_path, output_path, batch_size=200):
                     chrom = str(row['chrom']).replace('chr', '')
                     var_id = f"{chrom}:{row['pos']}:{row['ref']}:{row['alt']}"
                     
-                    if var_id in results_dict:
-                        g, c = results_dict[var_id]
-                        genes.append(g)
-                        consequences.append(c)
-                    else:
+                    # VEP возвращает ID в формате "15 48412568 C/A" (иногда через пробелы или слэши)
+                    # Поэтому мы проверяем, есть ли наши координаты в ключах словаря
+                    found = False
+                    for key, (g, c) in results_dict.items():
+                        if str(row['pos']) in key and row['ref'] in key and row['alt'] in key:
+                            genes.append(g)
+                            consequences.append(c)
+                            found = True
+                            break
+                    
+                    if not found:
                         genes.append("NA")
                         consequences.append("NA")
             else:

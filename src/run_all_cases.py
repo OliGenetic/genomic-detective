@@ -3,14 +3,13 @@ import pandas as pd
 import time
 import glob
 
-# Импортируем наши функции
+# Импортируем наши функции из других файлов
 from annotate_case import annotate_variants_batch
 from phenotype_parser import parse_phenotype
 from scorer import calculate_gene_scores
 
 def run_pipeline():
     # Ищем все файлы с вариантами (и в development, и в hidden, если они в подпапках)
-    # Если у тебя все файлы лежат просто в data/, этот паттерн их найдет.
     variant_files = sorted(glob.glob("data/**/case_*_variants.tsv", recursive=True))
     
     if not variant_files:
@@ -20,14 +19,14 @@ def run_pipeline():
     predictions = []
 
     for var_file in variant_files:
-        # Определяем ID кейса (например, case_01)
+        # Правильно вытаскиваем ID кейса (например, case_01)
         case_id = "_".join(os.path.basename(var_file).split('_')[:2])
+        
         print(f"\n{'='*40}")
         print(f"ОБРАБОТКА КЕЙСА: {case_id}")
         print(f"{'='*40}")
 
-        # Определяем пути к файлам
-        # Предполагаем, что файлы лежат в той же папке, что и variants
+        # Определяем пути к файлам (ищем в той же папке, где лежит variants.tsv)
         base_dir = os.path.dirname(var_file)
         pheno_file = os.path.join(base_dir, f"{case_id}_phenotype.json")
         annotated_file = os.path.join(base_dir, f"{case_id}_annotated.tsv")
@@ -36,7 +35,7 @@ def run_pipeline():
         if not os.path.exists(annotated_file):
             print(f"Аннотация для {case_id} не найдена. Запускаем VEP...")
             annotate_variants_batch(var_file, annotated_file)
-            time.sleep(2) # Пауза, чтобы не забанил API
+            time.sleep(2) # Пауза, чтобы не забанил API Ensembl
         else:
             print(f"Файл аннотации для {case_id} уже существует. Пропускаем VEP.")
 
@@ -52,15 +51,15 @@ def run_pipeline():
         print(f"Считаем баллы для {case_id}...")
         ranked_genes = calculate_gene_scores(annotated_file, pos_hpo, neg_hpo)
 
-        # 4. ПРИНЯТИЕ РЕШЕНИЯ
+        # 4. ПРИНЯТИЕ РЕШЕНИЯ (Защита от пустых результатов)
         if ranked_genes is None or ranked_genes.empty:
-            print("Не удалось найти кандидатов.")
+            print(f"Не удалось найти кандидатов для {case_id}. Возможно, нет совпадений с HPO.")
             predictions.append(f"{case_id}\tno_causal_variant_in_vcf")
             continue
 
         top_candidate = ranked_genes.iloc[0]
         
-        # Если лучший балл слишком низкий (например, меньше 2), значит убедительного кандидата нет
+        # Если лучший балл слишком низкий (например, меньше 2.0), значит нет уверенного кандидата
         if top_candidate['score'] < 2.0:
             print(f"Лучший балл ({top_candidate['score']}) слишком низкий. Пишем no_causal_variant_in_vcf.")
             predictions.append(f"{case_id}\tno_causal_variant_in_vcf")
