@@ -1,0 +1,6 @@
+build-essential
+zlib1g-dev
+libbz2-dev
+liblzma-dev
+libcurl4-openssl-dev
+libssl-dev
