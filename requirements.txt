@@ -3,7 +3,7 @@ pandas>=2.2,<3.0
 cyvcf2>=0.31,<1.0
 
 # Веб-интерфейс (Streamlit обновляется часто, фиксируем широкий диапазон)
-streamlit>=1.60,<2.0
+streamlit>=1.30.0
 
 # HTTP-запросы (для API ClinVar / gnomAD)
 requests>=2.31,<3.0
