@@ -3,10 +3,10 @@ import pandas as pd
 import time
 import glob
 
-# Импортируем наши функции из других файлов
 from annotate_case import annotate_variants_batch
 from phenotype_parser import parse_phenotype
-from scorer import calculate_gene_scores
+from scorer import calculate_gene_scores  
+from loader import load_variants
 
 def run_pipeline():
     # Ищем все файлы с вариантами (и в development, и в hidden, если они в подпапках)
@@ -31,11 +31,19 @@ def run_pipeline():
         pheno_file = os.path.join(base_dir, f"{case_id}_phenotype.json")
         annotated_file = os.path.join(base_dir, f"{case_id}_annotated.tsv")
 
-        # 1. АННОТАЦИЯ (если файла еще нет)
+        # 1. АННОТАЦИЯ
         if not os.path.exists(annotated_file):
             print(f"Аннотация для {case_id} не найдена. Запускаем VEP...")
-            annotate_variants_batch(var_file, annotated_file)
-            time.sleep(2) # Пауза, чтобы не забанил API Ensembl
+            # Если подали VCF, конвертируем его в TSV для аннотатора
+            if var_file.endswith(('.vcf', '.vcf.gz')):
+                df_vcf = load_variants(var_file)
+                temp_tsv = os.path.join(base_dir, f"{case_id}_temp.tsv")
+                df_vcf.to_csv(temp_tsv, sep="\t", index=False)
+                annotate_variants_batch(temp_tsv, annotated_file)
+                os.remove(temp_tsv)
+            else:
+                annotate_variants_batch(var_file, annotated_file)
+            time.sleep(2) 
         else:
             print(f"Файл аннотации для {case_id} уже существует. Пропускаем VEP.")
 
@@ -45,7 +53,7 @@ def run_pipeline():
             predictions.append(f"{case_id}\tno_causal_variant_in_vcf")
             continue
             
-        pos_hpo, neg_hpo = parse_phenotype(pheno_file)
+        pos_hpo, neg_hpo, _, _ = parse_phenotype(pheno_file)
 
         # 3. СКОРИНГ
         print(f"Считаем баллы для {case_id}...")
@@ -61,22 +69,37 @@ def run_pipeline():
         
         # Если лучший балл слишком низкий (например, меньше 2.0), значит нет уверенного кандидата
         if top_candidate['score'] < 2.0:
-            print(f"Лучший балл ({top_candidate['score']}) слишком низкий. Пишем no_causal_variant_in_vcf.")
-            predictions.append(f"{case_id}\tno_causal_variant_in_vcf")
+            print(f"Лучший балл ({top_candidate['score']}) слишком низкий.")
+            predictions.append(f"{case_id}\tno_causal_variant_in_vcf\tБаллы ниже порога достоверности")
+        
+        # ИСПРАВЛЕНО: Сценарий 2. Проверка на конкурирующие гипотезы (разница < 1.5)
+        elif len(ranked_genes) > 1 and (top_candidate['score'] - ranked_genes.iloc[1]['score']) < 1.5:
+            second_candidate = ranked_genes.iloc[1]
+            print(f"ВНИМАНИЕ: Неопределенность! Найдено два близких кандидата.")
+            print(f"1) {top_candidate['gene']} (Балл: {top_candidate['score']})")
+            print(f"   Объяснение: {top_candidate['explanation']}")
+            print(f"2) {second_candidate['gene']} (Балл: {second_candidate['score']})")
+            
+            # Записываем оба варианта
+            prediction_str = f"{top_candidate['variant']},{second_candidate['variant']}"
+            predictions.append(f"{case_id}\t{prediction_str}\tКонкурирующие гипотезы")
+            
         else:
-            print(f"Лучший кандидат: {top_candidate['gene']} ({top_candidate['variant']}) с баллом {top_candidate['score']}")
-            predictions.append(f"{case_id}\t{top_candidate['variant']}")
+            print(f"УВЕРЕННЫЙ КАНДИДАТ: {top_candidate['gene']} ({top_candidate['variant']}) | Балл: {top_candidate['score']}")
+            print(f"Объяснение: {top_candidate['explanation']}") # ДОБАВЛЕНО: Вывод объяснения
+            predictions.append(f"{case_id}\t{top_candidate['variant']}\tУверенный кандидат")
 
     # 5. СОХРАНЕНИЕ РЕЗУЛЬТАТОВ
     output_file = "predictions.tsv"
     with open(output_file, "w") as f:
-        f.write("case_id\tprediction\n")
+        # ИСПРАВЛЕНО: Добавлена колонка explanation для жюри
+        f.write("case_id\tprediction\treason\n") 
         for line in predictions:
             f.write(f"{line}\n")
     
-    print(f"\n{'='*40}")
+    print(f"\n{'='*50}")
     print(f"ГОТОВО! Все результаты сохранены в {output_file}")
-    print(f"{'='*40}")
+    print(f"{'='*50}")
 
 if __name__ == "__main__":
     run_pipeline()
