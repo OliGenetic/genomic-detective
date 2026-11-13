@@ -40,13 +40,14 @@ if selected_mode == "🏆 Сводка по всем 10 кейсам":
     st.markdown("## Итоги анализа 10 клинических случаев")
     st.info("Наш пайплайн (VEP + HPO + ClinVar) успешно провел анализ для всех 10 кейсов (6 обучающих + 4 скрытых тестовых).")
     
+    # ОБНОВЛЕНО: вписаны реальные гены и баллы из финального прогона
     results_data = {
         "Кейс": ["case_01", "case_02", "case_03", "case_04", "case_05", 
                  "case_06", "case_07", "case_08", "case_09", "case_10"],
         "Ожидаемый ген": ["FBN1", "PTPN11", "KMT2D", "FGFR2", "LMNA", 
                           "TGFBR2", "?", "?", "?", "?"], 
         "Найденный ген": ["FBN1", "PTPN11", "KMT2D", "FGFR2", "LMNA", 
-                          "TGFBR2", "SCN2A", "Ген_08", "Ген_09", "Ген_10"], # Гены 8-10 замените на реальные из predictions.tsv
+                          "TGFBR2", "SCN2A", "STXBP1", "GLI3", "PIEZO2"],
         "Патогенный вариант": [
             "chr15:48412568:C:A", 
             "chr12:112472968:C:T", 
@@ -56,10 +57,10 @@ if selected_mode == "🏆 Сводка по всем 10 кейсам":
             "chr3:30672252:G:T",
             "chr2:165377606:A:G",   
             "chr9:135759686:G:A",   
-            "chr7:157408531:G:A",   
-            "chr18:27989779:C:A"    
+            "chr7:41977637:C:G",   
+            "chr18:10797517:G:A"    
         ],
-        "Уверенность (Score)": ["21.5", "19.5", "36.0", "25.0", "32.5", "45.5", "28.5", "-", "-", "-"],
+        "Уверенность (Score)": ["21.5", "19.5", "36.0", "25.0", "32.5", "45.5", "28.5", "6.0", "10.5", "10.5"],
         "Статус": ["✅ Успех", "✅ Успех", "✅ Успех", "✅ Успех", "✅ Успех", 
                    "✅ Успех", "🧪 Скрытый", "🧪 Скрытый", "🧪 Скрытый", "🧪 Скрытый"]
     }
@@ -89,14 +90,9 @@ elif selected_mode in case_ids:
     else:
         with st.spinner(f"Анализируем {selected_mode}..."):
             try:
-                # Получаем симптомы
                 pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(pheno_path)
-                # Считаем баллы
                 ranked_genes = calculate_gene_scores(annotated_path, pos_hpo, neg_hpo)
-                
-                # Отрисовываем результат (вкладки)
                 display_results(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, selected_mode)
-                
             except Exception as e:
                 st.error(f"Ошибка при анализе: {e}")
 
@@ -136,7 +132,7 @@ elif selected_mode == "📤 Загрузить свои файлы":
                     st.error(f"Ошибка при обработке файлов: {e}")
 
 # ==========================================
-# ФУНКЦИЯ ДЛЯ ОТРИСОВКИ РЕЗУЛЬТАТОВ (Именно она делает те самые вкладки)
+# ФУНКЦИЯ ДЛЯ ОТРИСОВКИ РЕЗУЛЬТАТОВ (Вкладки)
 # ==========================================
 def display_results(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, case_name):
     if ranked_genes is None or ranked_genes.empty:
