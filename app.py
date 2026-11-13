@@ -18,19 +18,25 @@ st.markdown("### Система приоритизации генетическ�
 st.markdown("---")
 
 # ==========================================
-# БОКОВАЯ ПАНЕЛЬ (Выбор действия)
+# БОКОВАЯ ПАНЕЛЬ (Как на старом сайте)
 # ==========================================
 with st.sidebar:
-    st.header("Навигация")
+    st.header("Выбор кейса для анализа")
     
     # Ищем все доступные кейсы
     available_files = glob.glob("data/case_*_phenotype.json")
     case_ids = sorted(["_".join(os.path.basename(f).split('_')[:2]) for f in available_files])
     
-    # Формируем список опций для меню
+    # Меню: сначала сводка, потом кейсы, потом загрузка
     options = ["🏆 Сводка по всем 10 кейсам"] + case_ids + ["📤 Загрузить свои файлы"]
+    selected_mode = st.selectbox("Выберите действие:", options)
     
-    selected_mode = st.radio("Выберите действие:", options)
+    # Если выбран конкретный кейс, показываем кнопку "Запустить анализ"
+    if selected_mode in case_ids:
+        run_button = st.button("Запустить анализ", use_container_width=True)
+    else:
+        run_button = False # Для сводки и загрузки кнопка не нужна, они работают сами
+        
     st.markdown("---")
 
 # ==========================================
@@ -40,7 +46,6 @@ if selected_mode == "🏆 Сводка по всем 10 кейсам":
     st.markdown("## Итоги анализа 10 клинических случаев")
     st.info("Наш пайплайн (VEP + HPO + ClinVar) успешно провел анализ для всех 10 кейсов (6 обучающих + 4 скрытых тестовых).")
     
-    # ОБНОВЛЕНО: вписаны реальные гены и баллы из финального прогона
     results_data = {
         "Кейс": ["case_01", "case_02", "case_03", "case_04", "case_05", 
                  "case_06", "case_07", "case_08", "case_09", "case_10"],
@@ -67,7 +72,6 @@ if selected_mode == "🏆 Сводка по всем 10 кейсам":
     
     df_results = pd.DataFrame(results_data)
     
-    # Красим колонку статуса
     def color_status(val):
         if '✅' in str(val): return 'background-color: #1e4620; color: #85e085'
         if '🧪' in str(val): return 'background-color: #1a3b5c; color: #85c1e9'
@@ -80,21 +84,22 @@ if selected_mode == "🏆 Сводка по всем 10 кейсам":
 # РЕЖИМ 2: ДЕТАЛЬНЫЙ АНАЛИЗ КОНКРЕТНОГО КЕЙСА
 # ==========================================
 elif selected_mode in case_ids:
-    st.markdown(f"## Анализ клинического случая: {selected_mode}")
-    
-    pheno_path = f"data/{selected_mode}_phenotype.json"
-    annotated_path = f"data/{selected_mode}_annotated.tsv"
-    
-    if not os.path.exists(annotated_path):
-        st.error(f"Для {selected_mode} еще нет файла аннотации.")
+    if run_button:
+        pheno_path = f"data/{selected_mode}_phenotype.json"
+        annotated_path = f"data/{selected_mode}_annotated.tsv"
+        
+        if not os.path.exists(annotated_path):
+            st.error(f"Для {selected_mode} еще нет файла аннотации.")
+        else:
+            with st.spinner(f"Анализируем {selected_mode}..."):
+                try:
+                    pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(pheno_path)
+                    ranked_genes = calculate_gene_scores(annotated_path, pos_hpo, neg_hpo)
+                    display_results(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, selected_mode)
+                except Exception as e:
+                    st.error(f"Ошибка при анализе: {e}")
     else:
-        with st.spinner(f"Анализируем {selected_mode}..."):
-            try:
-                pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(pheno_path)
-                ranked_genes = calculate_gene_scores(annotated_path, pos_hpo, neg_hpo)
-                display_results(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, selected_mode)
-            except Exception as e:
-                st.error(f"Ошибка при анализе: {e}")
+        st.info("👈 Выберите кейс в боковой панели и нажмите **'Запустить анализ'**.")
 
 # ==========================================
 # РЕЖИМ 3: ЗАГРУЗКА СВОИХ ФАЙЛОВ
@@ -139,13 +144,13 @@ def display_results(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, case
         st.warning("Не удалось найти кандидатов (возможно, нет совпадений с HPO).")
         return
         
-    st.success(f"✅ Анализ для {case_name} завершен!")
+    st.success(f"Анализ для {case_name} завершен!")
     
-    tab1, tab2, tab3 = st.tabs(["🏆 Главный кандидат", "📊 Топ-5 таблица", "📝 Симптомы пациента"])
+    tab1, tab2, tab3 = st.tabs(["🏆 Главный кандидат", "Топ-5 таблица", "📝 Симптомы пациента"])
     
     with tab1:
         top = ranked_genes.iloc[0]
-        st.markdown(f"## Наиболее вероятный ген-кандидат: **{top['gene']}**")
+        st.markdown(f"## Наиболее вероятный ген-кандидат: {top['gene']}")
         
         col1, col2, col3 = st.columns(3)
         col1.metric("Итоговый балл", f"{top['score']}")
@@ -176,14 +181,15 @@ def display_results(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, case
     with tab3:
         st.markdown("### Клиническая картина пациента")
         
+        # Сделал точно как на вашем 3-м скриншоте (без галочек)
         st.write("#### Подтвержденные симптомы (есть у пациента):")
         for label in pos_labels:
-            st.markdown(f"- ✅ {label}")
+            st.markdown(f"• {label}")
             
         if neg_labels:
             st.write("#### Исключенные симптомы (отсутствуют):")
             for label in neg_labels:
-                st.markdown(f"- ❌ ~~{label}~~")
+                st.markdown(f"• ~~{label}~~")
 
 st.markdown("---")
-st.caption("Дисклеймер: Результаты предназначены исключительно в исследовательских и образовательных целях. Не является медицинским диагнозом.")
+st.caption("Дисклеймер: Результаты предназначены исключительно в исследовательских и образовательных целях.")
