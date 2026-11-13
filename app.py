@@ -15,7 +15,7 @@ st.markdown("### Система приоритизации генетическ�
 st.markdown("---")
 
 # ==============================================================================
-# ВСТРОЕННАЯ БАЗА ДАННЫХ (Чтобы работало без папки data)
+# ВСТРОЕННАЯ БАЗА ДАННЫХ
 # ==============================================================================
 PRECOMPUTED_RESULTS = {
     "case_01": {"gene": "FBN1", "var": "chr15:48412568:C:A", "score": 21.5, "matches": 14, "cons": "missense_variant", "symptoms": ["Tall stature", "Aortic root aneurysm", "Ectopia lentis"]},
@@ -30,95 +30,8 @@ PRECOMPUTED_RESULTS = {
     "case_10": {"gene": "PIEZO2", "var": "chr18:10797517:G:A", "score": 10.5, "matches": 5, "cons": "stop_gained", "symptoms": ["Arthrogryposis", "Scoliosis", "Respiratory distress"]}
 }
 
-# ==========================================
-# БОКОВАЯ ПАНЕЛЬ
-# ==========================================
-with st.sidebar:
-    st.header("Выбор кейса для анализа")
-    case_ids = [f"case_{i:02d}" for i in range(1, 11)]
-    options = ["🏆 Сводка по всем 10 кейсам"] + case_ids + ["📤 Загрузить свои файлы"]
-    selected_mode = st.selectbox("Выберите действие:", options)
-    
-    if selected_mode in case_ids:
-        run_button = st.button("Запустить анализ", use_container_width=True)
-    else:
-        run_button = False
-        
-    st.markdown("---")
-
-# ==========================================
-# РЕЖИМ 1: СВОДКА
-# ==========================================
-if selected_mode == "🏆 Сводка по всем 10 кейсам":
-    st.markdown("## Итоги анализа 10 клинических случаев")
-    st.info("Наш пайплайн успешно провел анализ для всех 10 кейсов (6 обучающих + 4 скрытых тестовых).")
-    
-    table_data = {"Кейс": [], "Ожидаемый ген": [], "Найденный ген": [], "Патогенный вариант": [], "Score": [], "Статус": []}
-    expected = ["FBN1", "PTPN11", "KMT2D", "FGFR2", "LMNA", "TGFBR2", "?", "?", "?", "?"]
-    
-    for i, cid in enumerate(case_ids):
-        res = PRECOMPUTED_RESULTS[cid]
-        table_data["Кейс"].append(cid)
-        table_data["Ожидаемый ген"].append(expected[i])
-        table_data["Найденный ген"].append(res["gene"])
-        table_data["Патогенный вариант"].append(res["var"])
-        table_data["Score"].append(str(res["score"]))
-        table_data["Статус"].append("✅ Успех" if i < 6 else "🧪 Скрытый")
-        
-    df_results = pd.DataFrame(table_data)
-    def color_status(val):
-        if '✅' in str(val): return 'background-color: #1e4620; color: #85e085'
-        if '🧪' in str(val): return 'background-color: #1a3b5c; color: #85c1e9'
-        return ''
-    st.dataframe(df_results.style.map(color_status, subset=['Статус']), use_container_width=True, hide_index=True)
-    st.success("🎯 Точность на валидационной выборке (кейсы 1-6): 6 из 6 (100%)")
-
-# ==========================================
-# РЕЖИМ 2: ДЕТАЛЬНЫЙ АНАЛИЗ
-# ==========================================
-elif selected_mode in case_ids:
-    if run_button:
-        pheno_path = f"data/{selected_mode}_phenotype.json"
-        annotated_path = f"data/{selected_mode}_annotated.tsv"
-        
-        # Проверяем наличие файлов на сервере
-        if os.path.exists(pheno_path) and os.path.exists(annotated_path):
-            # Если файлы есть (локально) — считаем по-настоящему
-            with st.spinner(f"Считаем реальные данные для {selected_mode}..."):
-                pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(pheno_path)
-                ranked_genes = calculate_gene_scores(annotated_path, pos_hpo, neg_hpo)
-                display_results_live(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, selected_mode)
-        else:
-            # Если файлов нет (на сервере) — берем из встроенной базы
-            st.info(f"ℹ️ Файлы не найдены на сервере. Показываем предварительно рассчитанные результаты для {selected_mode}.")
-            res = PRECOMPUTED_RESULTS[selected_mode]
-            display_results_mock(res, selected_mode)
-    else:
-        st.info("👈 Нажмите **'Запустить анализ'**, чтобы увидеть результаты.")
-
-# ==========================================
-# РЕЖИМ 3: ЗАГРУЗКА
-# ==========================================
-elif selected_mode == "📤 Загрузить свои файлы":
-    # (Оставляем без изменений, как было раньше)
-    st.markdown("## Анализ нового клинического случая")
-    col1, col2 = st.columns(2)
-    with col1: uploaded_pheno = st.file_uploader("Файл симптомов (JSON)", type=['json'])
-    with col2: uploaded_annotated = st.file_uploader("Файл вариантов (TSV)", type=['tsv'])
-    if uploaded_pheno and uploaded_annotated:
-        if st.button("Запустить анализ загруженных файлов", use_container_width=True):
-            with st.spinner("Обработка файлов..."):
-                temp_pheno_path, temp_annotated_path = "temp_pheno.json", "temp_annotated.tsv"
-                with open(temp_pheno_path, "wb") as f: f.write(uploaded_pheno.getbuffer())
-                with open(temp_annotated_path, "wb") as f: f.write(uploaded_annotated.getbuffer())
-                pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(temp_pheno_path)
-                ranked_genes = calculate_gene_scores(temp_annotated_path, pos_hpo, neg_hpo)
-                display_results_live(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, "Загруженный кейс")
-                os.remove(temp_pheno_path)
-                os.remove(temp_annotated_path)
-
 # ==============================================================================
-# ФУНКЦИИ ОТРИСОВКИ
+# ФУНКЦИИ ОТРИСОВКИ (Перенесены наверх!)
 # ==============================================================================
 
 # 1. Отрисовка для "живых" данных (из файлов)
@@ -187,6 +100,84 @@ def display_results_mock(res, case_name):
         st.write("#### Подтвержденные симптомы (есть у пациента):")
         for l in res["symptoms"]:
             st.markdown(f"• {l}")
+
+# ==============================================================================
+# ОСНОВНАЯ ЛОГИКА ПРИЛОЖЕНИЯ
+# ==============================================================================
+
+with st.sidebar:
+    st.header("Выбор кейса для анализа")
+    case_ids = [f"case_{i:02d}" for i in range(1, 11)]
+    options = ["🏆 Сводка по всем 10 кейсам"] + case_ids + ["📤 Загрузить свои файлы"]
+    selected_mode = st.selectbox("Выберите действие:", options)
+    
+    if selected_mode in case_ids:
+        run_button = st.button("Запустить анализ", use_container_width=True)
+    else:
+        run_button = False
+        
+    st.markdown("---")
+
+# РЕЖИМ 1: СВОДКА
+if selected_mode == "🏆 Сводка по всем 10 кейсам":
+    st.markdown("## Итоги анализа 10 клинических случаев")
+    st.info("Наш пайплайн успешно провел анализ для всех 10 кейсов (6 обучающих + 4 скрытых тестовых).")
+    
+    table_data = {"Кейс": [], "Ожидаемый ген": [], "Найденный ген": [], "Патогенный вариант": [], "Score": [], "Статус": []}
+    expected = ["FBN1", "PTPN11", "KMT2D", "FGFR2", "LMNA", "TGFBR2", "?", "?", "?", "?"]
+    
+    for i, cid in enumerate(case_ids):
+        res = PRECOMPUTED_RESULTS[cid]
+        table_data["Кейс"].append(cid)
+        table_data["Ожидаемый ген"].append(expected[i])
+        table_data["Найденный ген"].append(res["gene"])
+        table_data["Патогенный вариант"].append(res["var"])
+        table_data["Score"].append(str(res["score"]))
+        table_data["Статус"].append("✅ Успех" if i < 6 else "🧪 Скрытый")
+        
+    df_results = pd.DataFrame(table_data)
+    def color_status(val):
+        if '✅' in str(val): return 'background-color: #1e4620; color: #85e085'
+        if '🧪' in str(val): return 'background-color: #1a3b5c; color: #85c1e9'
+        return ''
+    st.dataframe(df_results.style.map(color_status, subset=['Статус']), use_container_width=True, hide_index=True)
+    st.success("🎯 Точность на валидационной выборке (кейсы 1-6): 6 из 6 (100%)")
+
+# РЕЖИМ 2: ДЕТАЛЬНЫЙ АНАЛИЗ
+elif selected_mode in case_ids:
+    if run_button:
+        pheno_path = f"data/{selected_mode}_phenotype.json"
+        annotated_path = f"data/{selected_mode}_annotated.tsv"
+        
+        if os.path.exists(pheno_path) and os.path.exists(annotated_path):
+            with st.spinner(f"Считаем реальные данные для {selected_mode}..."):
+                pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(pheno_path)
+                ranked_genes = calculate_gene_scores(annotated_path, pos_hpo, neg_hpo)
+                display_results_live(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, selected_mode)
+        else:
+            st.info(f"ℹ️ Файлы не найдены на сервере. Показываем предварительно рассчитанные результаты для {selected_mode}.")
+            res = PRECOMPUTED_RESULTS[selected_mode]
+            display_results_mock(res, selected_mode)
+    else:
+        st.info("👈 Нажмите **'Запустить анализ'**, чтобы увидеть результаты.")
+
+# РЕЖИМ 3: ЗАГРУЗКА
+elif selected_mode == "📤 Загрузить свои файлы":
+    st.markdown("## Анализ нового клинического случая")
+    col1, col2 = st.columns(2)
+    with col1: uploaded_pheno = st.file_uploader("Файл симптомов (JSON)", type=['json'])
+    with col2: uploaded_annotated = st.file_uploader("Файл вариантов (TSV)", type=['tsv'])
+    if uploaded_pheno and uploaded_annotated:
+        if st.button("Запустить анализ загруженных файлов", use_container_width=True):
+            with st.spinner("Обработка файлов..."):
+                temp_pheno_path, temp_annotated_path = "temp_pheno.json", "temp_annotated.tsv"
+                with open(temp_pheno_path, "wb") as f: f.write(uploaded_pheno.getbuffer())
+                with open(temp_annotated_path, "wb") as f: f.write(uploaded_annotated.getbuffer())
+                pos_hpo, neg_hpo, pos_labels, neg_labels = parse_phenotype(temp_pheno_path)
+                ranked_genes = calculate_gene_scores(temp_annotated_path, pos_hpo, neg_hpo)
+                display_results_live(ranked_genes, pos_hpo, neg_hpo, pos_labels, neg_labels, "Загруженный кейс")
+                os.remove(temp_pheno_path)
+                os.remove(temp_annotated_path)
 
 st.markdown("---")
 st.caption("Дисклеймер: Результаты предназначены исключительно в исследовательских и образовательных целях.")
