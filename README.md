@@ -66,3 +66,7 @@ python src/scorer.py
 ```
 python src/run_all_cases.py
 ```
+
+## Веб-интерфейс
+
+[Перейти на сайт с решением](https://genomic-detective-wvyskhrn5khrrhct8syeqx.streamlit.app/)
